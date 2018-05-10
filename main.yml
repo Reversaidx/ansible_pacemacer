@@ -1,0 +1,59 @@
+- name: install pacemaker
+  hosts: pacemaker
+  tasks: 
+   - name: changehostname
+     hostname: name={{ inventory_hostname }}
+   - name: save old hosts
+     copy: remote_src=True src=/etc/hosts dest=/etc/hosts.bak
+   - name: install hosts
+     template: src=hosts.j2 dest=/etc/hosts
+   - name: install nginx
+     apt: name={{ item }} update_cache=yes
+     with_items:
+      - nginx
+      - pacemaker
+      - corosync 
+      - crmsh
+      - haveged
+   - name: cosyak 
+     apt: name=haveged state=absent
+     when:  inventory_hostname  != "web01"
+   - name: stop
+     service: name={{ item }} state=stopped
+     with_items: 
+      - corosync
+      - pacemaker
+
+   - name: checkfile
+     stat: path=/etc/corosync/authkey
+     register: corosync_status
+
+   - name: Corosync
+     command: corosync-keygen
+     when: 
+      - inventory_hostname == "web01"
+      - corosync_status.stat.exists == False
+
+   - name: backupconfig
+     command: mv /etc/corosync/corosync.conf /etc/corosync/corosync.conf.bekup
+     when: 
+      - inventory_hostname == "web01"
+      - corosync_status.stat.exists == False
+   - name: corosyncconf
+     template: src=corosync.conf.j2 dest=/etc/corosync/corosync.conf
+   
+   - name: fetch
+     fetch: 
+      src: /etc/corosync/authkey
+      dest: ./authkey
+      flat: yes
+     when: inventory_hostname == "web01"
+   - copy:
+      src: ./authkey
+      dest: /etc/corosync/authkey
+     when: inventory_hostname  != "web01"
+   - name: startserv
+     service: name={{ item }} state=restarted
+     with_items: 
+      - corosync
+      - pacemaker 

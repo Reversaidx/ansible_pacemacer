@@ -1,0 +1,6 @@
+- name: test
+  hosts: pacemaker
+  tasks: 
+   - debug:
+     msg: "{{ item }}"
+     loop: "{{ query('inventory_hostnames', 'all') }}"
